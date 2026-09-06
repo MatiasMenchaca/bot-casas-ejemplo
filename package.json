@@ -1,0 +1,24 @@
+{
+  "name": "bot-casas-ejemplo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Bot simple para jugar a las casas",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "prestart": "npm run build",
+    "test": "tsx --test test/*.test.ts"
+  },
+  "dependencies": {
+    "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.4.1",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2"
+  }
+}
