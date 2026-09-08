@@ -20,7 +20,7 @@ aparecer `package.json`, `src` y `fixtures`.
 
 Para comprobar que las herramientas están disponibles:
 
-```powershell
+```powershell/bash
 node --version
 npm --version
 ```
@@ -103,16 +103,40 @@ ni muestra una partida en pantalla.
 Abrir esa dirección en un navegador no hace esta misma prueba: el navegador
 envía normalmente un `GET`, pero nuestro endpoint espera un `POST` con el estado.
 
+Para ejecutarlo en sistemas unix(Linux,MacOs,git bash):
+
+previamente instalar curl
+```bash
+npm install curl
+```
+
+```bash
+curl -X POST http://localhost:3000/move \
+  -H "Content-Type: application/json" \
+  --data @fixtures/state1.json
+```
+- `curl -X POST ... `→ equivalente a Invoke-RestMethod -Method Post
+- `-H "Content-Type: application/json"` → equivalente a -ContentType 'application/json'
+- `--data @fixtures/state1.json `→ el @ le dice a curl que lea el body desde ese archivo (reemplaza el Get-Content -Raw + -Body)
+
+
 ## Paso 4: probar otros casos
 
 También hay un segundo ejemplo listo para usar: `fixtures/state2.json`.
 Tiene otro tablero, el jugador `B` y un dado con valor `2`. Para enviarlo,
 ejecutá estas tres líneas en la segunda terminal:
 
+#### Powershell
 ```powershell
 $estado = Get-Content -Raw fixtures/state2.json
 $respuesta = Invoke-RestMethod -Method Post -Uri http://localhost:3000/move -ContentType 'application/json' -Body $estado
 $respuesta | ConvertTo-Json
+```
+#### Bash
+```bash
+curl -X POST http://localhost:3000/move \
+  -H "Content-Type: application/json" \
+  --data @fixtures/state2.json
 ```
 
 Deberías recibir `{"B1":"N"}`: B1 es la primera pieza del jugador B que
@@ -137,7 +161,7 @@ original para que las pruebas automáticas sigan usando los mismos datos.
 
 También podés comprobar varios casos con un solo comando:
 
-```powershell
+```powershell/bash
 npm test
 ```
 
