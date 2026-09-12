@@ -115,8 +115,8 @@ $respuesta = Invoke-RestMethod -Method Post -Uri http://localhost:3000/move -Con
 $respuesta | ConvertTo-Json
 ```
 
-Deberías recibir `{"B1":"N"}`: B1 es la primera pieza del jugador B que
-el bot encuentra al recorrer ese tablero por filas.
+Deberías recibir `{"B1":"N","B2":"N"}`: un movimiento hacia el norte
+por cada ficha del jugador B que aparece en ese tablero.
 
 Abrí `fixtures/state1.json` en el editor. Después de cada cambio, guardá el archivo
 y **volvé a ejecutar las tres líneas del paso 3** para leer su nuevo contenido.
@@ -135,7 +135,7 @@ original para que las pruebas automáticas sigan usando los mismos datos.
 
 ## Pruebas automáticas
 
-También podés comprobar varios casos con un solo comando:
+Las pruebas usan Jest. Podés ejecutarlas con un solo comando:
 
 ```powershell
 npm test
@@ -144,7 +144,8 @@ npm test
 No hace falta iniciar el bot para esto: las pruebas levantan su propio servidor
 temporal y lo cierran al terminar. Comprueban las respuestas para A y B, los valores
 del dado y el rechazo de estados inválidos. Si todo está bien, el resumen indica
-`pass 2` y `fail 0`: hay dos pruebas que agrupan varios casos.
+`Tests: 6 passed, 6 total`. También verifican que se muevan todas las fichas
+propias, se ignoren las ajenas y neutrales, y no se modifique el estado.
 
 ## Problemas frecuentes
 
@@ -181,8 +182,8 @@ Las casillas contienen `""` (vacía), `"N"` (casa neutral) o un ID de pieza
 como `"A1"`, `"A2"` o `"B2"`, con un entero positivo. El tablero usa tuplas
 de longitud 10. El endpoint valida el JSON recibido y devuelve 400 si es inválido.
 
-La estrategia elige la primera pieza propia recorriendo por filas y devuelve
-norte. Si no hay piezas propias, devuelve `{}`. No modifica el estado.
+La estrategia recorre todo el tablero y devuelve norte para cada pieza propia,
+por ejemplo `{"A1":"N","A2":"N"}`. Si no hay piezas propias, devuelve `{}`. No modifica el estado.
 Por ahora no usa el dado para decidir ni verifica si el movimiento es legal.
 
 La estrategia está en `src/strategy.ts`, el handler en `src/move.ts`,
