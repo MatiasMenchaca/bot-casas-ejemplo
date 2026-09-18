@@ -1,38 +1,115 @@
-import type { Movement, State } from "./types.js";
+import type { Direction, Movement, PieceId, State } from "./types.js";
 
-// La estrategia no depende de Express: recibe un estado y devuelve una decisión.
-// Por ahora no usa el dado ni comprueba obstáculos o límites del tablero.
-export function chooseMove(state: State): Movement {
-  // Acumulamos un movimiento por cada pieza propia recorriendo todas las filas.
-  const movements: Movement = {};
-  for (const row of state.tablero) {
-    for (const cell of row) {
-      // El prefijo identifica al dueño; las casillas vacías y neutrales se ignoran.
-      // [cell] usa el ID encontrado como clave del diccionario de respuesta.
-      // «as const» conserva el tipo literal "N" en lugar del tipo general string.
-      // Agregamos la pieza al resultado y seguimos buscando las demás.
-      if (cell.startsWith(state.jugador)) Object.assign(movements, { [cell]: "N" as const });
+const DIRECTIONS = ["N", "E", "S", "O"] as const satisfies readonly Direction[];
+const BOARD_SIZE = 10;
+
+function wrapIndex(index: number): number {
+  return ((index % BOARD_SIZE) + BOARD_SIZE) % BOARD_SIZE;
+}
+
+function advance(row: number, col: number, direction: Direction, steps: number): { row: number; col: number } {
+  let currentRow = row;
+  let currentCol = col;
+
+  for (let step = 0; step < steps; step += 1) {
+    switch (direction) {
+      case "N": currentRow = wrapIndex(currentRow - 1); break;
+      case "S": currentRow = wrapIndex(currentRow + 1); break;
+      case "E": currentCol = wrapIndex(currentCol + 1); break;
+      case "O": currentCol = wrapIndex(currentCol - 1); break;
     }
   }
 
-
-  // Si el jugador no tiene piezas, no proponemos ningún movimiento.
-  return movements;
+  return { row: currentRow, col: currentCol };
 }
 
+function isOwnPiece(cell: string, player: State["jugador"]): boolean {
+  return cell !== "" && cell !== "N" && cell.startsWith(player);
+}
 
+function isNeutral(cell: string): boolean {
+  return cell === "N";
+}
 
+function isLegalPath(state: State, row: number, col: number, direction: Direction, steps: number): boolean {
+  let currentRow = row;
+  let currentCol = col;
 
-// Ejemplo: si cell contiene "casilla5", [cell] pone ese contenido como clave:
-// { [cell]: "N" } produce { casilla5: "N" }.
-// Sin corchetes, { cell: "N" } usa la palabra "cell" como clave:
-// produce { cell: "N" }, sin buscar el contenido de la variable.
-//
-// Con o sin «as const», al ejecutar el programa se obtiene el mismo objeto.
-// La diferencia está en cómo TypeScript interpreta el valor:
-// sin «as const», puede inferir string (cualquier texto, incluso "hola");
-// con «as const», el tipo del valor es exactamente "N".
-// Si se esperan solo direcciones permitidas, como "N" o "S", un string
-// general podría rechazarse, pero el valor exacto "N" sí es válido.
-// «as const» hace más preciso el tipo; no cambia el comportamiento.
-// Si al quitarlo no hay errores de tipos, puede no ser necesario aquí.
+  for (let step = 0; step < steps; step += 1) {
+    const next = advance(currentRow, currentCol, direction, 1);
+    currentRow = next.row;
+    currentCol = next.col;
+
+    const cell = state.tablero[currentRow][currentCol];
+    if (isOwnPiece(cell, state.jugador)) return false;
+    if (cell !== "" && cell !== "N") return false;
+  }
+
+  return true;
+}
+
+function scoreMove(state: State, row: number, col: number, direction: Direction, steps: number): number {
+  const destination = advance(row, col, direction, steps);
+  const cell = state.tablero[destination.row][destination.col];
+
+  let score = 0;
+
+  if (isNeutral(cell)) score += 10000;
+  else if (cell === "") score += 200;
+
+  const directionPriority: Record<Direction, number> = { N: 40, E: 30, S: 20, O: 10 };
+  score += directionPriority[direction];
+
+  const centerDistance = Math.abs(destination.row - 4.5) + Math.abs(destination.col - 4.5);
+  score += (10 - centerDistance) * 15;
+
+  const neighbors = [
+    { row: destination.row - 1, col: destination.col },
+    { row: destination.row + 1, col: destination.col },
+    { row: destination.row, col: destination.col - 1 },
+    { row: destination.row, col: destination.col + 1 },
+  ].filter(pos => pos.row >= 0 && pos.row < BOARD_SIZE && pos.col >= 0 && pos.col < BOARD_SIZE)
+    .filter(pos => isNeutral(state.tablero[pos.row][pos.col])).length;
+  score += neighbors * 80;
+
+  return score;
+}
+
+function chooseDirection(state: State, row: number, col: number): Direction | null {
+  let bestDirection: Direction | null = null;
+  let bestScore = Number.NEGATIVE_INFINITY;
+
+  for (const direction of DIRECTIONS) {
+    let moveScore = Number.NEGATIVE_INFINITY;
+
+    for (let steps = 1; steps <= 3; steps += 1) {
+      if (!isLegalPath(state, row, col, direction, steps)) continue;
+      const score = scoreMove(state, row, col, direction, steps);
+      if (score > moveScore) moveScore = score;
+    }
+
+    if (moveScore > bestScore) {
+      bestScore = moveScore;
+      bestDirection = direction;
+    }
+  }
+
+  return bestDirection;
+}
+
+export function chooseMove(state: State): Movement {
+  const movements: Movement = {};
+
+  for (const [rowIndex, row] of state.tablero.entries()) {
+    for (const [colIndex, cell] of row.entries()) {
+      if (typeof cell !== "string" || !cell.startsWith(state.jugador)) continue;
+
+      const direction = chooseDirection(state, rowIndex, colIndex);
+      if (direction) {
+        movements[cell as PieceId] = direction;
+      }
+    }
+  }
+
+  return movements;
+}

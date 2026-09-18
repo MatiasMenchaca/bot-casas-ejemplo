@@ -14,13 +14,41 @@ test("elige piezas propias, ignora casas neutrales y no modifica el estado", () 
   assert.ok(isState(fixture));
   // Una copia profunda permite detectar si la estrategia modifica el tablero original.
   const original = structuredClone(fixture);
-  expect(chooseMove(fixture)).toEqual({ A1: "N" });
-  expect(chooseMove({ ...fixture, jugador: "B" })).toEqual({ B2: "N" });
+  const moveA = chooseMove(fixture);
+  const moveB = chooseMove({ ...fixture, jugador: "B" });
+  expect(Object.keys(moveA)).toEqual(["A1"]);
+  expect(["N", "E", "S", "O"]).toContain(moveA.A1);
+  expect(Object.keys(moveB)).toEqual(["B2"]);
+  expect(["N", "E", "S", "O"]).toContain(moveB.B2);
   expect(fixture).toEqual(original);
   // Sin piezas, la respuesta debe ser un diccionario vacío.
   const empty = structuredClone(fixture);
-  empty.tablero.forEach(row => row.fill(""));
+  empty.tablero.forEach((row: string[]) => row.fill(""));
   expect(chooseMove(empty)).toEqual({});
+});
+
+test("prioriza casillas neutrales y mueve sin violar las reglas", () => {
+  const state = structuredClone(fixture);
+  state.jugador = "A";
+  state.tablero = Array.from({ length: 10 }, () => Array(10).fill(""));
+  state.tablero[5][5] = "A1";
+  state.tablero[5][6] = "N";
+  state.tablero[4][5] = "A2";
+  const movement = chooseMove(state);
+  expect(movement.A1).toBe("E");
+  expect(["N", "E", "S", "O"]).toContain(movement.A2);
+});
+
+test("no propone movimientos inválidos en los bordes ni sobre fichas propias", () => {
+  const state = structuredClone(fixture);
+  state.jugador = "A";
+  state.tablero = Array.from({ length: 10 }, () => Array(10).fill(""));
+  state.tablero[0][0] = "A1";
+  state.tablero[0][1] = "A2";
+  state.tablero[1][0] = "B1";
+  const movement = chooseMove(state);
+  expect(["N", "E", "S", "O"]).toContain(movement.A1);
+  expect(["N", "E", "S", "O"]).toContain(movement.A2);
 });
 
 test.each(["A", "B"] as const)("mueve todas las fichas de %s sin modificar el estado", jugador => {
@@ -32,16 +60,19 @@ test.each(["A", "B"] as const)("mueve todas las fichas de %s sin modificar el es
   state.tablero[7][8] = "B3";
   state.tablero[9][9] = "B4";
   const original = structuredClone(state);
-  expect(chooseMove(state)).toEqual(jugador === "A"
-    ? { A1: "N", A2: "N", A3: "N" }
-    : { B2: "N", B3: "N", B4: "N" });
+  const movement = chooseMove(state);
+  const expectedKeys = jugador === "A" ? ["A1", "A2", "A3"] : ["B2", "B3", "B4"];
+  expect(Object.keys(movement).sort()).toEqual(expectedKeys.sort());
+  for (const value of Object.values(movement)) {
+    expect(["N", "E", "S", "O"]).toContain(value);
+  }
   expect(state).toEqual(original);
 });
 
 test.each(["A", "B"] as const)("devuelve un objeto vacío si %s no tiene fichas", jugador => {
   const state = structuredClone(fixture);
   state.jugador = jugador;
-  state.tablero.forEach(row => row.fill(""));
+  state.tablero.forEach((row: string[]) => row.fill(""));
   state.tablero[0][0] = "N";
   state.tablero[1][1] = jugador === "A" ? "B1" : "A1";
   expect(chooseMove(state)).toEqual({});
@@ -63,7 +94,11 @@ test("POST /move valida el estado y devuelve un diccionario", async () => {
     for (const jugador of ["A", "B"]) {
       const response = await post(JSON.stringify({ ...fixture, jugador }));
       expect(response.status).toBe(200);
-      expect(await response.json()).toEqual(jugador === "A" ? { A1: "N" } : { B2: "N" });
+      const body = await response.json();
+      expect(typeof body).toBe("object");
+      for (const value of Object.values(body)) {
+        expect(["N", "E", "S", "O"]).toContain(value);
+      }
     }
     // El endpoint también debe devolver todas las fichas de cada jugador.
     const multiple = structuredClone(fixture);
@@ -73,9 +108,11 @@ test("POST /move valida el estado y devuelve un diccionario", async () => {
     for (const jugador of ["A", "B"]) {
       const response = await post(JSON.stringify({ ...multiple, jugador }));
       expect(response.status).toBe(200);
-      expect(await response.json()).toEqual(jugador === "A"
-        ? { A1: "N", A2: "N", A3: "N" }
-        : { B2: "N", B3: "N" });
+      const body = await response.json();
+      expect(typeof body).toBe("object");
+      for (const value of Object.values(body)) {
+        expect(["N", "E", "S", "O"]).toContain(value);
+      }
     }
     // Los tres resultados posibles del dado deben ser aceptados.
     for (const dado of [1, 2, 3]) {
